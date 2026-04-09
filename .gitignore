@@ -11,3 +11,4 @@ coverage
 *.log
 mocks/generated*.tsv
 .env
+upload/

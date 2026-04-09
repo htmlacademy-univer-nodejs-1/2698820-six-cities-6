@@ -12,22 +12,42 @@ import {fillDTO} from '../../shared/helpers/common.js';
 import {createAuthToken, parseAuthToken} from '../../shared/helpers/token.js';
 import {HttpError} from '../../shared/http-error/http-error.js';
 import {type Logger} from '../../shared/libs/logger/logger.interface.js';
+import {DocumentExistsMiddleware} from '../../shared/middleware/document-exists.middleware.js';
+import {ParseObjectIdMiddleware} from '../../shared/middleware/parse-objectid.middleware.js';
+import {UploadFileMiddleware} from '../../shared/middleware/upload-file.middleware.js';
 import {ValidateDtoMiddleware} from '../../shared/middleware/validate-dto.middleware.js';
 import {Controller} from '../../shared/rest/controller.abstract.js';
 import {Component} from '../../shared/types/component.js';
+import {type Config} from '../../shared/config/config.interface.js';
+
+type UserIdParams = {userId: string};
+type AvatarUploadRequest = Request<UserIdParams> & {file?: {filename: string}};
 
 @injectable()
 export class UserController extends Controller {
   constructor(
     @inject(Component.Logger) logger: Logger,
-    @inject(Component.UserService) private readonly userService: UserService
+    @inject(Component.UserService) private readonly userService: UserService,
+    @inject(Component.Config) private readonly config: Config
   ) {
     super(logger);
+
+    const userIdMiddleware = new ParseObjectIdMiddleware('userId');
 
     this.addRoute({path: '/register', method: 'post', handler: this.create, middlewares: [new ValidateDtoMiddleware(CreateUserDto)]});
     this.addRoute({path: '/login', method: 'post', handler: this.login, middlewares: [new ValidateDtoMiddleware(LoginUserDto)]});
     this.addRoute({path: '/logout', method: 'delete', handler: this.logout});
     this.addRoute({path: '/check', method: 'get', handler: this.check});
+    this.addRoute({
+      path: '/:userId/avatar',
+      method: 'post',
+      handler: this.uploadAvatar,
+      middlewares: [
+        userIdMiddleware,
+        new UploadFileMiddleware('avatar', this.config.get('UPLOAD_DIRECTORY'), ['image/jpeg', 'image/png']),
+        new DocumentExistsMiddleware(this.userService, 'User', 'userId', 'user')
+      ]
+    });
   }
 
   public create = async ({body}: Request<object, object, CreateUserDto>, response: Response): Promise<void> => {
@@ -66,6 +86,14 @@ export class UserController extends Controller {
       ? await this.findUserOrThrow(parseAuthToken(headers.authorization))
       : await this.findFirstUserOrThrow();
     this.ok(response, instanceToPlain(fillDTO(UserRdo, user)));
+  };
+
+  public uploadAvatar = async ({file}: AvatarUploadRequest, response: Response): Promise<void> => {
+    const user = response.locals.user as UserDocument;
+    const avatarPath = `/static/${file?.filename}`;
+    const updatedUser = await this.userService.updateById(user.id, {avatarPath}) ?? user;
+
+    this.ok(response, instanceToPlain(fillDTO(UserRdo, updatedUser)));
   };
 
   private async findUserOrThrow(userId: string): Promise<UserDocument> {

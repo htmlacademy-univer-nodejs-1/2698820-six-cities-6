@@ -1,0 +1,40 @@
+@host = http://localhost:4000/api
+@userId = 000000000000000000000000
+@offerId = 000000000000000000000000
+
+### Create user
+POST {{host}}/users/register
+Content-Type: application/json
+
+{
+  "name": "Daniil",
+  "email": "daniil@example.com",
+  "password": "secret1",
+  "userType": "pro"
+}
+
+### Upload avatar
+POST {{host}}/users/{{userId}}/avatar
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="avatar"; filename="avatar.png"
+Content-Type: image/png
+
+< ./mocks/avatar.png
+--boundary--
+
+### Show offers
+GET {{host}}/offers
+
+### Show offer comments
+GET {{host}}/offers/{{offerId}}/comments
+
+### Create comment
+POST {{host}}/offers/{{offerId}}/comments
+Content-Type: application/json
+
+{
+  "text": "Great place for a short trip.",
+  "rating": 5
+}

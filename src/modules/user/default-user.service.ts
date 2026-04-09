@@ -1,6 +1,6 @@
 import {inject, injectable} from 'inversify';
 import {type UserDocument, type UserModel} from './user.entity.js';
-import {type CreateUserDto, type UserService} from './user-service.interface.js';
+import {type CreateUserDto, type UpdateUserDto, type UserService} from './user-service.interface.js';
 import {Component} from '../../shared/types/component.js';
 
 @injectable()
@@ -21,5 +21,9 @@ export class DefaultUserService implements UserService {
 
   public async create(dto: CreateUserDto): Promise<UserDocument> {
     return this.userModel.create(dto);
+  }
+
+  public async updateById(id: string, dto: UpdateUserDto): Promise<UserDocument | null> {
+    return this.userModel.findByIdAndUpdate(id, dto, {new: true}).exec();
   }
 }

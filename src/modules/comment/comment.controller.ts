@@ -11,6 +11,7 @@ import {type UserService} from '../user/user-service.interface.js';
 import {fillDTO} from '../../shared/helpers/common.js';
 import {HttpError} from '../../shared/http-error/http-error.js';
 import {type Logger} from '../../shared/libs/logger/logger.interface.js';
+import {DocumentExistsMiddleware} from '../../shared/middleware/document-exists.middleware.js';
 import {ParseObjectIdMiddleware} from '../../shared/middleware/parse-objectid.middleware.js';
 import {ValidateDtoMiddleware} from '../../shared/middleware/validate-dto.middleware.js';
 import {Controller} from '../../shared/rest/controller.abstract.js';
@@ -29,24 +30,24 @@ export class CommentController extends Controller {
     super(logger, {mergeParams: true});
 
     const offerIdMiddleware = new ParseObjectIdMiddleware('offerId');
+    const offerExistsMiddleware = new DocumentExistsMiddleware(this.offerService, 'Offer', 'offerId', 'offer');
 
-    this.addRoute({path: '/', method: 'get', handler: this.index, middlewares: [offerIdMiddleware]});
+    this.addRoute({path: '/', method: 'get', handler: this.index, middlewares: [offerIdMiddleware, offerExistsMiddleware]});
     this.addRoute({
       path: '/',
       method: 'post',
       handler: this.create,
-      middlewares: [offerIdMiddleware, new ValidateDtoMiddleware(CreateCommentDto)]
+      middlewares: [offerIdMiddleware, new ValidateDtoMiddleware(CreateCommentDto), offerExistsMiddleware]
     });
   }
 
   public index = async ({params}: Request<OfferIdParams>, response: Response): Promise<void> => {
-    await this.findOfferOrThrow(params.offerId);
     const comments = await this.commentService.findByOfferId(params.offerId);
     this.ok(response, instanceToPlain(fillDTO(CommentRdo, comments)));
   };
 
-  public create = async ({params, body}: Request<OfferIdParams, object, CreateCommentDto>, response: Response): Promise<void> => {
-    const offer = await this.findOfferOrThrow(params.offerId);
+  public create = async ({body}: Request<OfferIdParams, object, CreateCommentDto>, response: Response): Promise<void> => {
+    const offer = response.locals.offer;
     const user = await this.resolveUser();
     const dto = body as CreateCommentDto;
 
@@ -60,16 +61,6 @@ export class CommentController extends Controller {
     const comment = await this.commentService.create(serviceDto);
     this.created(response, instanceToPlain(fillDTO(CommentRdo, comment)));
   };
-
-  private async findOfferOrThrow(offerId: string) {
-    const offer = await this.offerService.findById(offerId);
-
-    if (!offer) {
-      throw new HttpError(StatusCodes.NOT_FOUND, 'Offer not found');
-    }
-
-    return offer;
-  }
 
   private async resolveUser(): Promise<UserDocument> {
     const user = await this.userService.findFirst();

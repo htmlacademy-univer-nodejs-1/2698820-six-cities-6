@@ -38,6 +38,12 @@ export class DefaultConfig implements Config {
         env: 'DB_NAME',
         default: 'six-cities'
       },
+      UPLOAD_DIRECTORY: {
+        doc: 'Directory for uploaded files',
+        format: String,
+        env: 'UPLOAD_DIRECTORY',
+        default: 'upload'
+      },
       SALT: {
         doc: 'Random salt for hashing',
         format: (value: string) => {

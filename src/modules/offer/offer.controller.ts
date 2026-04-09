@@ -13,6 +13,7 @@ import {type UserService} from '../user/user-service.interface.js';
 import {fillDTO} from '../../shared/helpers/common.js';
 import {HttpError} from '../../shared/http-error/http-error.js';
 import {type Logger} from '../../shared/libs/logger/logger.interface.js';
+import {DocumentExistsMiddleware} from '../../shared/middleware/document-exists.middleware.js';
 import {ParseObjectIdMiddleware} from '../../shared/middleware/parse-objectid.middleware.js';
 import {ValidateDtoMiddleware} from '../../shared/middleware/validate-dto.middleware.js';
 import {Controller} from '../../shared/rest/controller.abstract.js';
@@ -32,22 +33,41 @@ export class OfferController extends Controller {
   ) {
     super(logger);
 
+    const offerIdMiddleware = new ParseObjectIdMiddleware('offerId');
+
     this.addRoute({path: '/premium/:cityName', method: 'get', handler: this.getPremiumByCity});
     this.addRoute({path: '/favorites', method: 'get', handler: this.getFavorites});
     this.addRoute({
       path: '/:offerId/favorite/:status',
       method: 'post',
       handler: this.changeFavoriteStatus,
-      middlewares: [new ParseObjectIdMiddleware('offerId')]
+      middlewares: [
+        offerIdMiddleware,
+        new DocumentExistsMiddleware(this.offerService, 'Offer', 'offerId', 'offer')
+      ]
     });
-    this.addRoute({path: '/:offerId', method: 'get', handler: this.show, middlewares: [new ParseObjectIdMiddleware('offerId')]});
+    this.addRoute({
+      path: '/:offerId',
+      method: 'get',
+      handler: this.show,
+      middlewares: [offerIdMiddleware, new DocumentExistsMiddleware(this.offerService, 'Offer', 'offerId', 'offer')]
+    });
     this.addRoute({
       path: '/:offerId',
       method: 'patch',
       handler: this.update,
-      middlewares: [new ParseObjectIdMiddleware('offerId'), new ValidateDtoMiddleware(UpdateOfferDto)]
+      middlewares: [
+        offerIdMiddleware,
+        new ValidateDtoMiddleware(UpdateOfferDto),
+        new DocumentExistsMiddleware(this.offerService, 'Offer', 'offerId', 'offer')
+      ]
     });
-    this.addRoute({path: '/:offerId', method: 'delete', handler: this.delete, middlewares: [new ParseObjectIdMiddleware('offerId')]});
+    this.addRoute({
+      path: '/:offerId',
+      method: 'delete',
+      handler: this.delete,
+      middlewares: [offerIdMiddleware, new DocumentExistsMiddleware(this.offerService, 'Offer', 'offerId', 'offer')]
+    });
     this.addRoute({path: '/', method: 'get', handler: this.index});
     this.addRoute({path: '/', method: 'post', handler: this.create, middlewares: [new ValidateDtoMiddleware(CreateOfferDto)]});
   }
@@ -58,8 +78,8 @@ export class OfferController extends Controller {
     this.ok(response, instanceToPlain(fillDTO(OfferSummaryRdo, offers)));
   };
 
-  public show = async ({params}: Request<OfferIdParams>, response: Response): Promise<void> => {
-    const offer = await this.findOfferOrThrow(params.offerId);
+  public show = async (_request: Request<OfferIdParams>, response: Response): Promise<void> => {
+    const offer = response.locals.offer as OfferDocument;
     this.ok(response, instanceToPlain(fillDTO(OfferDetailRdo, offer)));
   };
 
@@ -92,8 +112,8 @@ export class OfferController extends Controller {
     this.created(response, instanceToPlain(fillDTO(OfferDetailRdo, offer)));
   };
 
-  public update = async ({params, body}: Request<OfferIdParams, object, UpdateOfferDto>, response: Response): Promise<void> => {
-    const existingOffer = await this.findOfferOrThrow(params.offerId);
+  public update = async ({body}: Request<OfferIdParams, object, UpdateOfferDto>, response: Response): Promise<void> => {
+    const existingOffer = response.locals.offer as OfferDocument;
 
     const dto = body as UpdateOfferDto;
     const currentCity = existingOffer.city;
@@ -123,17 +143,12 @@ export class OfferController extends Controller {
       };
     }
 
-    const updatedOffer = await this.offerService.updateById(params.offerId, serviceDto);
-
-    if (!updatedOffer) {
-      throw new HttpError(StatusCodes.NOT_FOUND, 'Offer not found');
-    }
+    const updatedOffer = await this.offerService.updateById(existingOffer.id, serviceDto) ?? existingOffer;
 
     this.ok(response, instanceToPlain(fillDTO(OfferDetailRdo, updatedOffer)));
   };
 
   public delete = async ({params}: Request<OfferIdParams>, response: Response): Promise<void> => {
-    await this.findOfferOrThrow(params.offerId);
     await this.offerService.deleteById(params.offerId);
     this.noContent(response);
   };
@@ -150,24 +165,10 @@ export class OfferController extends Controller {
 
   public changeFavoriteStatus = async ({params}: Request<FavoriteParams>, response: Response): Promise<void> => {
     const isFavorite = params.status === '1';
-    const offer = await this.offerService.updateFavoriteStatus(params.offerId, isFavorite);
-
-    if (!offer) {
-      throw new HttpError(StatusCodes.NOT_FOUND, 'Offer not found');
-    }
+    const offer = await this.offerService.updateFavoriteStatus(params.offerId, isFavorite) ?? response.locals.offer as OfferDocument;
 
     this.ok(response, instanceToPlain(fillDTO(OfferDetailRdo, offer)));
   };
-
-  private async findOfferOrThrow(offerId: string): Promise<OfferDocument> {
-    const offer = await this.offerService.findById(offerId);
-
-    if (!offer) {
-      throw new HttpError(StatusCodes.NOT_FOUND, 'Offer not found');
-    }
-
-    return offer;
-  }
 
   private async resolveUser(): Promise<UserDocument> {
     const user = await this.userService.findFirst();
