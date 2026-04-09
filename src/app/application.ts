@@ -1,5 +1,6 @@
 import express, {type Express} from 'express';
 import { inject, injectable } from 'inversify';
+import { CommentController } from '../modules/comment/comment.controller.js';
 import { OfferController } from '../modules/offer/offer.controller.js';
 import { UserController } from '../modules/user/user.controller.js';
 import { type Config } from '../shared/config/config.interface.js';
@@ -18,6 +19,7 @@ export class Application {
     @inject(Component.DatabaseClient) private readonly databaseClient: DatabaseClient,
     @inject(Component.UserController) private readonly userController: UserController,
     @inject(Component.OfferController) private readonly offerController: OfferController,
+    @inject(Component.CommentController) private readonly commentController: CommentController,
     @inject(Component.ExceptionFilter) private readonly exceptionFilter: ExceptionFilter
   ) {
     this.app = express();
@@ -41,6 +43,7 @@ export class Application {
 
   private registerRoutes(): void {
     this.app.use('/api/users', this.userController.getRouter());
+    this.app.use('/api/offers/:offerId/comments', this.commentController.getRouter());
     this.app.use('/api/offers', this.offerController.getRouter());
   }
 

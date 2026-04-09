@@ -5,4 +5,5 @@ export type CreateUserDto = Pick<UserEntity, 'name' | 'email' | 'avatarPath' | '
 
 export interface UserService extends CrudService<UserDocument, CreateUserDto> {
   findByEmail(email: string): Promise<UserDocument | null>;
+  findFirst(): Promise<UserDocument | null>;
 }

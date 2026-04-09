@@ -15,6 +15,10 @@ export class DefaultUserService implements UserService {
     return this.userModel.findOne({email}).exec();
   }
 
+  public async findFirst(): Promise<UserDocument | null> {
+    return this.userModel.findOne().exec();
+  }
+
   public async create(dto: CreateUserDto): Promise<UserDocument> {
     return this.userModel.create(dto);
   }

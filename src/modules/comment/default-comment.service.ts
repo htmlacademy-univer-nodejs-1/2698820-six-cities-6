@@ -13,12 +13,13 @@ export class DefaultCommentService implements CommentService {
   ) {}
 
   public async findById(id: string): Promise<CommentDocument | null> {
-    return this.commentModel.findById(id).exec();
+    return this.commentModel.findById(id).populate('authorId').exec();
   }
 
   public async findByOfferId(offerId: string, limit = 50): Promise<CommentDocument[]> {
     return this.commentModel
       .find({offerId})
+      .populate('authorId')
       .sort({publishDate: -1})
       .limit(limit)
       .exec();
@@ -33,7 +34,7 @@ export class DefaultCommentService implements CommentService {
     const stats = await this.getOfferCommentsStats(comment.offerId);
     await this.offerModel.findByIdAndUpdate(comment.offerId, stats, {new: true}).exec();
 
-    return comment;
+    return comment.populate('authorId');
   }
 
   public async getOfferCommentsStats(offerId: Types.ObjectId | string): Promise<{commentsCount: number; rating: number}> {

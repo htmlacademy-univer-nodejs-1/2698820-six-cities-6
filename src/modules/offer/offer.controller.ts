@@ -11,9 +11,10 @@ import {OfferSummaryRdo} from './rdo/offer-summary.rdo.js';
 import {type UserDocument} from '../user/user.entity.js';
 import {type UserService} from '../user/user-service.interface.js';
 import {fillDTO} from '../../shared/helpers/common.js';
-import {parseAuthToken} from '../../shared/helpers/token.js';
 import {HttpError} from '../../shared/http-error/http-error.js';
 import {type Logger} from '../../shared/libs/logger/logger.interface.js';
+import {ParseObjectIdMiddleware} from '../../shared/middleware/parse-objectid.middleware.js';
+import {ValidateDtoMiddleware} from '../../shared/middleware/validate-dto.middleware.js';
 import {Controller} from '../../shared/rest/controller.abstract.js';
 import {Component} from '../../shared/types/component.js';
 import {type CityName} from '../../types/entities.js';
@@ -33,12 +34,22 @@ export class OfferController extends Controller {
 
     this.addRoute({path: '/premium/:cityName', method: 'get', handler: this.getPremiumByCity});
     this.addRoute({path: '/favorites', method: 'get', handler: this.getFavorites});
-    this.addRoute({path: '/:offerId/favorite/:status', method: 'post', handler: this.changeFavoriteStatus});
-    this.addRoute({path: '/:offerId', method: 'get', handler: this.show});
-    this.addRoute({path: '/:offerId', method: 'patch', handler: this.update});
-    this.addRoute({path: '/:offerId', method: 'delete', handler: this.delete});
+    this.addRoute({
+      path: '/:offerId/favorite/:status',
+      method: 'post',
+      handler: this.changeFavoriteStatus,
+      middlewares: [new ParseObjectIdMiddleware('offerId')]
+    });
+    this.addRoute({path: '/:offerId', method: 'get', handler: this.show, middlewares: [new ParseObjectIdMiddleware('offerId')]});
+    this.addRoute({
+      path: '/:offerId',
+      method: 'patch',
+      handler: this.update,
+      middlewares: [new ParseObjectIdMiddleware('offerId'), new ValidateDtoMiddleware(UpdateOfferDto)]
+    });
+    this.addRoute({path: '/:offerId', method: 'delete', handler: this.delete, middlewares: [new ParseObjectIdMiddleware('offerId')]});
     this.addRoute({path: '/', method: 'get', handler: this.index});
-    this.addRoute({path: '/', method: 'post', handler: this.create});
+    this.addRoute({path: '/', method: 'post', handler: this.create, middlewares: [new ValidateDtoMiddleware(CreateOfferDto)]});
   }
 
   public index = async ({query}: Request, response: Response): Promise<void> => {
@@ -52,9 +63,9 @@ export class OfferController extends Controller {
     this.ok(response, instanceToPlain(fillDTO(OfferDetailRdo, offer)));
   };
 
-  public create = async ({body, headers}: Request<object, object, CreateOfferDto>, response: Response): Promise<void> => {
-    const user = await this.findAuthorizedUser(headers.authorization);
-    const dto = Object.assign(new CreateOfferDto(), body);
+  public create = async ({body}: Request<object, object, CreateOfferDto>, response: Response): Promise<void> => {
+    const user = await this.resolveUser();
+    const dto = body as CreateOfferDto;
     const serviceDto: CreateOfferServiceDto = {
       title: dto.title,
       description: dto.description,
@@ -81,12 +92,10 @@ export class OfferController extends Controller {
     this.created(response, instanceToPlain(fillDTO(OfferDetailRdo, offer)));
   };
 
-  public update = async ({params, body, headers}: Request<OfferIdParams, object, UpdateOfferDto>, response: Response): Promise<void> => {
-    const user = await this.findAuthorizedUser(headers.authorization);
+  public update = async ({params, body}: Request<OfferIdParams, object, UpdateOfferDto>, response: Response): Promise<void> => {
     const existingOffer = await this.findOfferOrThrow(params.offerId);
-    this.ensureOfferOwner(existingOffer, user.id);
 
-    const dto = Object.assign(new UpdateOfferDto(), body);
+    const dto = body as UpdateOfferDto;
     const currentCity = existingOffer.city;
 
     if (!currentCity) {
@@ -123,11 +132,8 @@ export class OfferController extends Controller {
     this.ok(response, instanceToPlain(fillDTO(OfferDetailRdo, updatedOffer)));
   };
 
-  public delete = async ({params, headers}: Request<OfferIdParams>, response: Response): Promise<void> => {
-    const user = await this.findAuthorizedUser(headers.authorization);
-    const offer = await this.findOfferOrThrow(params.offerId);
-    this.ensureOfferOwner(offer, user.id);
-
+  public delete = async ({params}: Request<OfferIdParams>, response: Response): Promise<void> => {
+    await this.findOfferOrThrow(params.offerId);
     await this.offerService.deleteById(params.offerId);
     this.noContent(response);
   };
@@ -137,14 +143,12 @@ export class OfferController extends Controller {
     this.ok(response, instanceToPlain(fillDTO(OfferSummaryRdo, offers)));
   };
 
-  public getFavorites = async ({headers}: Request, response: Response): Promise<void> => {
-    await this.findAuthorizedUser(headers.authorization);
+  public getFavorites = async (_request: Request, response: Response): Promise<void> => {
     const offers = await this.offerService.findFavorites();
     this.ok(response, instanceToPlain(fillDTO(OfferSummaryRdo, offers)));
   };
 
-  public changeFavoriteStatus = async ({params, headers}: Request<FavoriteParams>, response: Response): Promise<void> => {
-    await this.findAuthorizedUser(headers.authorization);
+  public changeFavoriteStatus = async ({params}: Request<FavoriteParams>, response: Response): Promise<void> => {
     const isFavorite = params.status === '1';
     const offer = await this.offerService.updateFavoriteStatus(params.offerId, isFavorite);
 
@@ -154,17 +158,6 @@ export class OfferController extends Controller {
 
     this.ok(response, instanceToPlain(fillDTO(OfferDetailRdo, offer)));
   };
-
-  private async findAuthorizedUser(authorizationHeader?: string): Promise<UserDocument> {
-    const userId = parseAuthToken(authorizationHeader);
-    const user = await this.userService.findById(userId);
-
-    if (!user) {
-      throw new HttpError(StatusCodes.UNAUTHORIZED, 'User not found');
-    }
-
-    return user;
-  }
 
   private async findOfferOrThrow(offerId: string): Promise<OfferDocument> {
     const offer = await this.offerService.findById(offerId);
@@ -176,12 +169,13 @@ export class OfferController extends Controller {
     return offer;
   }
 
-  private ensureOfferOwner(offer: OfferDocument, userId: string): void {
-    const author = offer.authorId as unknown as {_id?: string; id?: string; toString?: () => string};
-    const authorId = author.id ?? author._id ?? author.toString?.();
+  private async resolveUser(): Promise<UserDocument> {
+    const user = await this.userService.findFirst();
 
-    if (authorId !== userId) {
-      throw new HttpError(StatusCodes.FORBIDDEN, 'You cannot modify another user offer');
+    if (!user) {
+      throw new HttpError(StatusCodes.BAD_REQUEST, 'No users available to link offer');
     }
+
+    return user;
   }
 }

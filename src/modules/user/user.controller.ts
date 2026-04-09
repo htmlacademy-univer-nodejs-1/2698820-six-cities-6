@@ -12,6 +12,7 @@ import {fillDTO} from '../../shared/helpers/common.js';
 import {createAuthToken, parseAuthToken} from '../../shared/helpers/token.js';
 import {HttpError} from '../../shared/http-error/http-error.js';
 import {type Logger} from '../../shared/libs/logger/logger.interface.js';
+import {ValidateDtoMiddleware} from '../../shared/middleware/validate-dto.middleware.js';
 import {Controller} from '../../shared/rest/controller.abstract.js';
 import {Component} from '../../shared/types/component.js';
 
@@ -23,8 +24,8 @@ export class UserController extends Controller {
   ) {
     super(logger);
 
-    this.addRoute({path: '/register', method: 'post', handler: this.create});
-    this.addRoute({path: '/login', method: 'post', handler: this.login});
+    this.addRoute({path: '/register', method: 'post', handler: this.create, middlewares: [new ValidateDtoMiddleware(CreateUserDto)]});
+    this.addRoute({path: '/login', method: 'post', handler: this.login, middlewares: [new ValidateDtoMiddleware(LoginUserDto)]});
     this.addRoute({path: '/logout', method: 'delete', handler: this.logout});
     this.addRoute({path: '/check', method: 'get', handler: this.check});
   }
@@ -54,13 +55,16 @@ export class UserController extends Controller {
   };
 
   public logout = async ({headers}: Request, response: Response): Promise<void> => {
-    parseAuthToken(headers.authorization);
+    if (headers.authorization) {
+      parseAuthToken(headers.authorization);
+    }
     this.noContent(response);
   };
 
   public check = async ({headers}: Request, response: Response): Promise<void> => {
-    const userId = parseAuthToken(headers.authorization);
-    const user = await this.findUserOrThrow(userId);
+    const user = headers.authorization
+      ? await this.findUserOrThrow(parseAuthToken(headers.authorization))
+      : await this.findFirstUserOrThrow();
     this.ok(response, instanceToPlain(fillDTO(UserRdo, user)));
   };
 
@@ -69,6 +73,16 @@ export class UserController extends Controller {
 
     if (!user) {
       throw new HttpError(StatusCodes.UNAUTHORIZED, 'User not found');
+    }
+
+    return user;
+  }
+
+  private async findFirstUserOrThrow(): Promise<UserDocument> {
+    const user = await this.userService.findFirst();
+
+    if (!user) {
+      throw new HttpError(StatusCodes.NOT_FOUND, 'User not found');
     }
 
     return user;

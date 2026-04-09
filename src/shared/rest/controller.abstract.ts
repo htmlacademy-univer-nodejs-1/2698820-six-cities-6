@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import {StatusCodes} from 'http-status-codes';
-import {Router, type Response} from 'express';
+import {Router, type Response, type RouterOptions} from 'express';
 import {inject, injectable} from 'inversify';
 import {type ControllerInterface} from './controller.interface.js';
 import {type Logger} from '../libs/logger/logger.interface.js';
@@ -11,8 +11,11 @@ import {type RouteInterface} from './route.interface.js';
 export abstract class Controller implements ControllerInterface {
   protected readonly router: Router;
 
-  constructor(@inject(Component.Logger) protected readonly logger: Logger) {
-    this.router = Router();
+  constructor(
+    @inject(Component.Logger) protected readonly logger: Logger,
+    routerOptions?: RouterOptions
+  ) {
+    this.router = Router(routerOptions);
   }
 
   public getRouter(): Router {
@@ -22,7 +25,11 @@ export abstract class Controller implements ControllerInterface {
   protected addRoute(route: RouteInterface): void {
     const middlewares = route.middlewares ?? [];
     this.logger.info(`Register route: [${route.method.toUpperCase()}] ${route.path}`);
-    this.router[route.method](route.path, ...middlewares.map((middleware) => middleware as never), asyncHandler(route.handler as never));
+    this.router[route.method](
+      route.path,
+      ...middlewares.map((middleware) => middleware.execute.bind(middleware)),
+      asyncHandler(route.handler as never)
+    );
   }
 
   protected ok<T>(response: Response, dto: T): void {

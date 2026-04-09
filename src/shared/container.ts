@@ -2,6 +2,7 @@ import { Container } from 'inversify';
 import { Application } from '../app/application.js';
 import { HttpExceptionFilter } from './exception-filter/http-exception-filter.js';
 import { type ExceptionFilter } from './exception-filter/exception-filter.interface.js';
+import { CommentController } from '../modules/comment/comment.controller.js';
 import { OfferController } from '../modules/offer/offer.controller.js';
 import { DefaultCommentService } from '../modules/comment/default-comment.service.js';
 import { createCommentModel, type CommentModel } from '../modules/comment/comment.entity.js';
@@ -36,6 +37,7 @@ export const createContainer = (): Container => {
   container.bind<CommentService>(Component.CommentService).to(DefaultCommentService).inSingletonScope();
   container.bind<UserController>(Component.UserController).to(UserController).inSingletonScope();
   container.bind<OfferController>(Component.OfferController).to(OfferController).inSingletonScope();
+  container.bind<CommentController>(Component.CommentController).to(CommentController).inSingletonScope();
   container.bind<ExceptionFilter>(Component.ExceptionFilter).to(HttpExceptionFilter).inSingletonScope();
 
   return container;
