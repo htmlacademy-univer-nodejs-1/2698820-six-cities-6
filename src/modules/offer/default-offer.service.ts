@@ -2,11 +2,15 @@ import {inject, injectable} from 'inversify';
 import {type OfferDocument, type OfferModel} from './offer.entity.js';
 import {type CityName} from '../../types/entities.js';
 import {type CreateOfferDto, type OfferService, type UpdateOfferDto} from './offer-service.interface.js';
+import {type CommentModel} from '../comment/comment.entity.js';
 import {Component} from '../../shared/types/component.js';
 
 @injectable()
 export class DefaultOfferService implements OfferService {
-  constructor(@inject(Component.OfferModel) private readonly offerModel: OfferModel) {}
+  constructor(
+    @inject(Component.OfferModel) private readonly offerModel: OfferModel,
+    @inject(Component.CommentModel) private readonly commentModel: CommentModel
+  ) {}
 
   public async find(limit = 60, userId?: string): Promise<OfferDocument[]> {
     const offers = await this.offerModel
@@ -34,7 +38,13 @@ export class DefaultOfferService implements OfferService {
   }
 
   public async deleteById(id: string): Promise<OfferDocument | null> {
-    return this.offerModel.findByIdAndDelete(id).exec();
+    const offer = await this.offerModel.findByIdAndDelete(id).exec();
+
+    if (offer) {
+      await this.commentModel.deleteMany({offerId: offer._id}).exec();
+    }
+
+    return offer;
   }
 
   public async findPremiumByCity(cityName: CityName, userId?: string): Promise<OfferDocument[]> {

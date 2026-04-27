@@ -8,5 +8,6 @@ export type CreateCommentDto = Pick<CommentEntity, 'text' | 'rating' | 'offerId'
 
 export interface CommentService extends CrudService<CommentDocument, CreateCommentDto> {
   findByOfferId(offerId: string, limit?: number): Promise<CommentDocument[]>;
+  deleteByOfferId(offerId: Types.ObjectId | string): Promise<number>;
   getOfferCommentsStats(offerId: Types.ObjectId | string): Promise<{commentsCount: number; rating: number}>;
 }

@@ -37,6 +37,11 @@ export class DefaultCommentService implements CommentService {
     return comment.populate('authorId');
   }
 
+  public async deleteByOfferId(offerId: Types.ObjectId | string): Promise<number> {
+    const result = await this.commentModel.deleteMany({offerId}).exec();
+    return result.deletedCount;
+  }
+
   public async getOfferCommentsStats(offerId: Types.ObjectId | string): Promise<{commentsCount: number; rating: number}> {
     const [stats] = await this.commentModel.aggregate<{commentsCount: number; rating: number}>([
       {$match: {offerId}},

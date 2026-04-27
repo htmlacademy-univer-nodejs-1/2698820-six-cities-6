@@ -172,6 +172,10 @@ export class OfferController extends Controller {
   };
 
   public changeFavoriteStatus = async ({params}: Request<FavoriteParams>, response: Response): Promise<void> => {
+    if (!['0', '1'].includes(params.status)) {
+      throw new HttpError(StatusCodes.BAD_REQUEST, 'Favorite status must be 0 or 1');
+    }
+
     const isFavorite = params.status === '1';
     const offer = await this.offerService.updateFavoriteStatus(params.offerId, this.getRequiredUserId(response), isFavorite)
       ?? response.locals.offer as OfferDocument;
@@ -194,9 +198,8 @@ export class OfferController extends Controller {
   }
 
   private ensureOfferAuthor(offer: OfferDocument, userId: string): void {
-    const offerAuthorId = typeof offer.authorId === 'object' && offer.authorId !== null && 'id' in offer.authorId
-      ? String(offer.authorId.id)
-      : String(offer.authorId);
+    const author = offer.authorId as unknown as {id?: string; _id?: Types.ObjectId; toString(): string};
+    const offerAuthorId = author.id ?? author._id?.toString() ?? author.toString();
 
     if (offerAuthorId !== userId) {
       throw new HttpError(StatusCodes.FORBIDDEN, 'You can edit only your own offers');
