@@ -11,6 +11,7 @@ import {UserRdo} from './rdo/user.rdo.js';
 import {fillDTO} from '../../shared/helpers/common.js';
 import {HttpError} from '../../shared/http-error/http-error.js';
 import {type Logger} from '../../shared/libs/logger/logger.interface.js';
+import {AnonymousRouteMiddleware} from '../../shared/middleware/anonymous-route.middleware.js';
 import {PrivateRouteMiddleware} from '../../shared/middleware/private-route.middleware.js';
 import {UploadFileMiddleware} from '../../shared/middleware/upload-file.middleware.js';
 import {ValidateDtoMiddleware} from '../../shared/middleware/validate-dto.middleware.js';
@@ -33,7 +34,7 @@ export class UserController extends Controller {
 
     const privateRouteMiddleware = new PrivateRouteMiddleware(this.tokenService);
 
-    this.addRoute({path: '/register', method: 'post', handler: this.create, middlewares: [new ValidateDtoMiddleware(CreateUserDto)]});
+    this.addRoute({path: '/register', method: 'post', handler: this.create, middlewares: [new ValidateDtoMiddleware(CreateUserDto), new AnonymousRouteMiddleware()]});
     this.addRoute({path: '/login', method: 'post', handler: this.login, middlewares: [new ValidateDtoMiddleware(LoginUserDto)]});
     this.addRoute({path: '/logout', method: 'delete', handler: this.logout, middlewares: [privateRouteMiddleware]});
     this.addRoute({path: '/check', method: 'get', handler: this.check, middlewares: [privateRouteMiddleware]});
@@ -62,9 +63,9 @@ export class UserController extends Controller {
 
   public login = async ({body}: Request<object, object, LoginUserDto>, response: Response): Promise<void> => {
     const dto = Object.assign(new LoginUserDto(), body);
-    const user = await this.userService.findByEmail(dto.email);
+    const user = await this.userService.verifyUser(dto.email, dto.password);
 
-    if (!user || user.password !== dto.password) {
+    if (!user) {
       throw new HttpError(StatusCodes.UNAUTHORIZED, 'Invalid email or password');
     }
 

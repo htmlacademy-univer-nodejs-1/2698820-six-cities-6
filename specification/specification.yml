@@ -25,7 +25,7 @@ components:
       required: true
       schema:
         type: string
-        format: uuid
+        pattern: '^[0-9a-fA-F]{24}$'
     CityNameParam:
       name: cityName
       in: path
@@ -38,8 +38,8 @@ components:
       required: true
       description: '1 - add to favorites, 0 - remove from favorites'
       schema:
-        type: integer
-        enum: [0, 1]
+        type: string
+        enum: ['0', '1']
 
   schemas:
     UserType:
@@ -662,5 +662,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+
+  /users/avatar:
+    post:
+      tags: [Users]
+      summary: Upload user avatar
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [avatar]
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Avatar uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid file
         '401':
           description: Unauthorized

@@ -1,4 +1,5 @@
-import {Expose} from 'class-transformer';
+import {Expose, Transform} from 'class-transformer';
+import {DEFAULT_AVATAR_PATH} from '../user.entity.js';
 
 export class UserRdo {
   @Expose({name: '_id'})
@@ -11,6 +12,7 @@ export class UserRdo {
   public email!: string;
 
   @Expose()
+  @Transform(({value}) => value ?? DEFAULT_AVATAR_PATH)
   public avatarPath?: string;
 
   @Expose()

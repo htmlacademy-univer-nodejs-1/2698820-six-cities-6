@@ -1,5 +1,6 @@
-import express, {type Express} from 'express';
 import {resolve} from 'node:path';
+import cors from 'cors';
+import express, {type Express} from 'express';
 import { inject, injectable } from 'inversify';
 import { CommentController } from '../modules/comment/comment.controller.js';
 import { OfferController } from '../modules/offer/offer.controller.js';
@@ -39,6 +40,7 @@ export class Application {
   }
 
   private registerMiddlewares(): void {
+    this.app.use(cors());
     this.app.use(express.json());
     this.app.use('/static', express.static(resolve(this.config.get('UPLOAD_DIRECTORY'))));
   }

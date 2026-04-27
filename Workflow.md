@@ -129,3 +129,15 @@ npm run cli -- --import ./mocks/offers.tsv mongodb://127.0.0.1:27017/six-cities
 - `DB_HOST`
 - `DB_PORT`
 - `DB_NAME`
+
+## Actual environment variables
+
+The service reads these variables from `.env`:
+
+- `PORT=4000` - HTTP server port.
+- `DB_HOST=127.0.0.1` - MongoDB host.
+- `DB_PORT=27017` - MongoDB port.
+- `DB_NAME=six-cities` - MongoDB database name.
+- `SALT=some-random-salt-value` - salt for password hashing.
+- `JWT_SECRET=super-secret-jwt-key` - secret for JWT tokens.
+- `UPLOAD_DIRECTORY=upload` - directory for user uploaded files.
